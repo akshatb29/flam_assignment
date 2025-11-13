@@ -189,7 +189,7 @@ def list(state, format):
                 cmd,
                 job.state,
                 f"{job.attempts}/{job.max_retries}",
-                job.created_at[:19]  # Remove milliseconds
+                job.created_at[:19]  #type:ignore
             ])
         
         click.echo(f"\n{len(jobs)} job(s) found:\n")
@@ -236,7 +236,7 @@ def dlq_list(format):
                 cmd,
                 job.attempts,
                 error,
-                job.created_at[:19]
+                job.created_at[:19] #type:ignore
             ])
         
         click.echo(f"\n{len(jobs)} job(s) in DLQ:\n")

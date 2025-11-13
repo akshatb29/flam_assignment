@@ -16,9 +16,9 @@ class Config:
     
     DEFAULT_CONFIG = {
         "max_retries": 3,
-        "backoff_base": 2,  # exponential backoff: base^attempts seconds
-        "worker_poll_interval": 1,  # seconds between checking for jobs
-        "db_path": "jobs.db",  # SQLite database file
+        "backoff_base": 2,  
+        "worker_poll_interval": 1, 
+        "db_path": "jobs.db", 
     }
     
     def __init__(self, config_path: str = None): #type:ignore
