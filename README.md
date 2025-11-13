@@ -1,119 +1,182 @@
-Demo link - https://drive.google.com/file/d/1HXMg9XOK_vER1nPxsEOAOSFhHj3vcDpD/view?usp=sharing
 
-🚀 QueueCTL — Lightweight Job Queue with Workers, Retries & DLQ
+# ⚡ QueueCTL — Lightweight Job Queue System with Workers, Retries & DLQ
 
-QueueCTL is a minimal, production-ready background job queue built with Python.
-It supports persistent storage, multiple workers, automatic retries with exponential backoff, and a Dead Letter Queue (DLQ), all accessible via a simple CLI.
+QueueCTL is a minimal, production-ready background job processing system.
+It supports persistent storage, multiple workers, automatic retries with exponential backoff, and a Dead Letter Queue (DLQ).
+The entire system is accessible through a clean and powerful CLI.
 
-🔧 1. Setup Instructions
-Install dependencies
+demo link - https://drive.google.com/file/d/1HXMg9XOK_vER1nPxsEOAOSFhHj3vcDpD/view?usp=sharing
+
+---
+
+## ⭐ Features
+
+* **Job Enqueueing:** Add jobs that run shell commands.
+* **Parallel Workers:** Start multiple workers to process jobs concurrently.
+* **Automatic Retries:** Failed jobs retry with exponential backoff (`base^attempts`).
+* **Dead Letter Queue (DLQ):** Jobs exceeding `max_retries` are moved to DLQ for later inspection.
+* **SQLite Persistence:** Jobs survive restarts and crashes via durable storage.
+* **CLI Interface:** Manage jobs, workers, configuration, and DLQ with a simple command-line tool.
+* **Configurable:** Modify retry limits, backoff base, and worker polling via config commands.
+
+---
+
+## 🔄 How It Works
+
+1. A job is enqueued with a shell command (`echo Hello`, `timeout 1`, etc.).
+2. A worker picks the next pending job and marks it as `processing`.
+3. The job is executed via `subprocess`.
+4. If the job:
+
+   * **Succeeds:** → state becomes `completed`
+   * **Fails:** → worker retries after exponential backoff
+   * **Exceeds retries:** → moved to `dead` (DLQ)
+5. SQLite ensures no duplicate processing and keeps full job history.
+
+Jobs move through this lifecycle:
+
+```
+pending → processing → completed
+              ↓
+           failed → dead (DLQ)
+```
+
+---
+
+## 🚀 Setup Instructions
+
+### 1. Install dependencies
+
+```
 pip install -r requirements.txt
+```
 
-Install the CLI
+### 2. Install QueueCTL CLI
+
+```
 pip install -e .
+```
 
-Verify installation
+### 3. Verify installation
+
+```
 queuectl --help
+```
 
-📦 2. Usage Examples
-Enqueue jobs
-queuectl enqueue '{"command": "echo Hello"}'
-queuectl enqueue '{"command": "exit 1"}'
-queuectl enqueue '{"command": "nonexistentcommand123"}'
+---
 
-Check queue status
+## 💻 Usage
+
+### Enqueue jobs
+
+```
+queuectl enqueue '{"command":"echo Hello"}'
+queuectl enqueue '{"command":"exit 1"}'
+queuectl enqueue '{"command":"nonexistentcommand123"}'
+```
+or run the test script loop
+
+```
+python test.py
+```
+
+### Start workers
+
+```
+queuectl worker start --count 3
+```
+
+### Check queue status
+
+```
 queuectl status
+```
 
-List jobs
+### List jobs by state
+
+```
 queuectl list --state pending
 queuectl dlq list
+```
 
-Start workers
-queuectl worker start --count 2
+### Retry a DLQ job
 
-Retry a DLQ job
+```
 queuectl dlq retry <job_id>
+```
 
-Update configuration
+### Update configuration
+
+```
 queuectl config set max-retries 5
+```
 
-🏛 3. Architecture Overview
-Job Lifecycle
+---
 
-pending → waiting for worker
+## 🧱 Architecture Overview
 
-processing → actively executing
+### Core Components
 
-completed → finished successfully
+#### **1. Queue Manager**
 
-failed → failed but retryable
+* Validates and enqueues new jobs.
+* Handles DLQ operations.
+* Provides queue statistics.
 
-dead → permanently failed (DLQ)
+#### **2. Workers**
 
-Workers
+* Execute shell commands.
+* Apply exponential backoff on failures.
+* Update job states safely using atomic DB operations.
 
-Poll for pending/failed jobs
+#### **3. Storage Layer (SQLite)**
 
-Execute commands using subprocess
+* WAL mode for concurrency.
+* Stores all job metadata:
+* Persistent storage
 
-Apply exponential backoff (delay = base^attempts)
+  * `id`, `command`, `state`, `attempts`
+  * `created_at`, `updated_at`
+  * `error_message`, `worker_id`
 
-Move exhausted jobs to DLQ
+#### **4. CLI**
 
-Graceful shutdown support
+* Entry point for enqueueing, listing, inspecting, retrying, and worker control.
 
-Persistence
+---
 
-Jobs stored in SQLite (jobs.db)
+## ⚖ Assumptions & Trade-offs
 
-WAL mode for safe concurrent worker access
+* SQLite chosen for simplicity and reliability over distributed environments.
+* No job priorities (FIFO only).
+* No scheduling or delays beyond retry backoff.
+* Designed to be minimal but production-ready for single-machine workloads.
 
-All fields stored: id, command, state, attempts, timestamps, error, worker_id
+---
 
-CLI Layer
+## 🧪 Testing Instructions
 
-Powered by Click
+To verify functionality:
 
-Provides enqueue, listing, config, worker management, DLQ tools
+1. **Enqueue success + failure jobs**
 
-⚖️ 4. Assumptions & Trade-offs
+   * echo, timeout, exit 1, nonexistent commands.
+2. **Start 1–2 workers** and confirm:
 
-SQLite selected for simplicity & reliability (no external dependencies).
+   * Jobs complete correctly.
+   * Retry behavior works.
+   * DLQ is populated.
+3. **Retry DLQ jobs** and ensure they return to pending.
+4. **Restart workers or CLI** to confirm job persistence.
+5. Run the continuous demo:
 
-FIFO job ordering (no priorities implemented).
+   ```
+   python demo_loop.py
+   ```
+6. Inspect database:
 
-Commands executed via shell; assumes worker OS supports them.
+   ```
+   python view_db.py
+   ```
 
-No scheduling (run_at) added for simplicity.
-
-Backoff is exponential and non-configurable per job (config-based only).
-
-🧪 5. Testing Instructions
-Manual tests
-
-Enqueue multiple job types (success, fail, invalid commands).
-
-Start workers and observe:
-
-job processing
-
-retries with backoff
-
-jobs moving to DLQ
-
-Retry DLQ job and confirm it moves back to pending.
-
-Stop/start workers and confirm job persistence.
-
-Modify config (e.g., max retries) and verify effect.
-
-Recommended demo
-
-Run the auto-generator script:
-
-python demo_loop.py
-
-
-Then inspect DB:
-
-python view_db.py
+---
